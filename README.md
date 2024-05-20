@@ -1,6 +1,4 @@
-# traffic_sign_recognition
-
-
+# reconhecendo sinais transito, sinalizacao horizontal(Apenas faixas )
 
 Install ANACONDA
 

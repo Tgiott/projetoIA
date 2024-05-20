@@ -1,0 +1,15 @@
+DIA 25/05/2024 - 09h30
+
+1 Introducao:
+
+2 Ferramentas usadas(Anaconda,Tensorflow, Docker,Dataset traffic sign and lanes of Brazilian)
+
+3 Aplicacoes (Monitoramento de veiculos, avaliacao de conducao de funcionarios, carros, caminhoes... )
+
+4 Breve explicacao de como foi treinado e quais principios foram usados (Aprendizado Supervisionado)
+
+5 Demonstracao Video  ( Usar um video recente demonstrando funcionamento do modelo)
+
+6 Demonstracao Real Time (Se possivel dar uma volta breve pelo entorno da Fatec pra demonstrar o funcionamento do modelo)
+
+7 Fim da Apresentacao (Apenas isso....)
