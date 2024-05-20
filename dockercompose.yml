@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  jupyter:
+    image: nvidia/cuda:11.0-base-ubuntu20.04
+    working_dir: /home/jupyter
+    volumes:
+      - ./notebooks:/home/jupyter/notebooks
+    ports:
+      - "8888:8888"
+    environment:
+      NVIDIA_DRIVER_VERSION: latest
+      NVIDIA_VISIBLE_DEVICES: all
+    user: root
