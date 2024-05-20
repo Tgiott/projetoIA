@@ -10,6 +10,6 @@ DIA 25/05/2024 - 09h30
 
 5 Demonstracao Video  ( Usar um video recente demonstrando funcionamento do modelo)
 
-6 Demonstracao Real Time (Se possivel dar uma volta breve pelo entorno da Fatec pra demonstrar o funcionamento do modelo)
+6 Demonstracao Real Time (Se possivel dar uma volta breve pelo entorno da Fatec pra demonstrar o funcionamento do modelo)[DEU RUIM, NAO TEM NET BOA]
 
 7 Fim da Apresentacao (Apenas isso....)
