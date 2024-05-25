@@ -1,3 +1,5 @@
 /datasets
 /labels
+/kaggle
 *.h5
+/uploads

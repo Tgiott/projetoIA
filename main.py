@@ -5,22 +5,34 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.layers import Dropout, Flatten
-from tensorflow.keras.layers import  Conv2D,MaxPooling2D
+from tensorflow.keras.layers import  MaxPooling2D
+from tensorflow.keras.layers import Conv2D
 
 import cv2
 from sklearn.model_selection import train_test_split
 import pickle
 import os
+from pathlib import Path
 import pandas as pd
+import random
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
- 
-path = "Dataset" 
-labelFile = 'labels.csv' 
+import sys
+
+sys.stdin.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding='utf-8')
+
+ #path = "C:/DEV/projetos/ProjetoIA/Dataset/brazilian-dataset/images" 
+path = "C:/DEV/projetos/ProjetoIA/datasets/Dataset.old" 
+#\[Pierre, Monhel Maudoony (2023), “Brazilian Vertical Traffic Signs and Lights Dataset”, Mendeley Data, V2, doi: 10.17632/jbpsr4fvg9.2\]
+
+
+labelFile = 'C:/DEV/projetos/ProjetoIA/labels/labels.csv' 
 batch_size_val=32 
 epochs_val=10
 imageDimesions = (32,32,3)
 testRatio = 0.2    
 validationRatio = 0.2 
+
 
 count = 0
 images = []
@@ -43,7 +55,6 @@ classNo = np.array(classNo)
  
 X_train, X_test, y_train, y_test = train_test_split(images, classNo, test_size=testRatio)
 X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=validationRatio)
- 
 
 print("Data Shapes")
 print("Train",end = "");print(X_train.shape,y_train.shape)
@@ -110,13 +121,20 @@ def myModel():
     model.add(Dense(500,activation='relu'))
     model.add(Dropout(0.5))
     model.add(Dense(noOfClasses,activation='softmax')) 
-    model.compile(Adam(lr=0.001),loss='categorical_crossentropy',metrics=['accuracy'])
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
     return model
  
 model = myModel()
 print(model.summary())
-history=model.fit_generator(dataGen.flow(X_train,y_train,batch_size=32),steps_per_epoch=len(X_train)//32,epochs=epochs_val,validation_data=(X_validation,y_validation),shuffle=1)
- 
+history=model.fit(dataGen.flow(X_train,y_train,batch_size=batch_size_val),steps_per_epoch=len(X_train)//32,epochs=epochs_val,validation_data=(X_validation,y_validation),shuffle=1)
+
+def save_model(path, model):
+    if not os.path.exists(path):
+        print('save directories...', flush=True)
+        os.makedirs(path)
+    model.save(path + '/model.h5')
+
+
 plt.figure(1)
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
@@ -134,4 +152,8 @@ score =model.evaluate(X_test,y_test,verbose=0)
 print('Test Score:',score[0])
 print('Test Accuracy:',score[1])
  
+
+
+
 model.save("model.h5")
+
