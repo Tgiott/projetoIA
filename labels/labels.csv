@@ -1,0 +1,44 @@
+ClassId,Name
+0, Limite de velocidade (20km/h)
+1, Limite de velocidade (30km/h)
+2, Limite de velocidade (50km/h)
+3, Limite de velocidade (60km/h)
+4, Limite de velocidade (70km/h)
+5, Limite de velocidade (80km/h)
+6, Fim de limite de velocidade (80km/h)
+7, Limite de velocidade (100km/h)
+8, Limite de velocidade (120km/h)
+9, Ultrapassagem proibida
+10, Ultrapassagem proibida para veículos acima de 3.5 toneladas
+11, Cedência de passagem no próximo cruzamento
+12, Estrada com prioridade
+13, Dê a preferência
+14, Pare
+15, Veículos proibidos
+16, Veículos acima de 3.5 toneladas proibidos
+17, Entrada proibida
+18, Atenção
+19, Curva perigosa à esquerda
+20, Curva perigosa à direita
+21, Curva dupla
+22, Estrada irregular
+23, Piso escorregadio
+24, Estrada estreita à direita
+25, Obras na pista
+26, Semaforização
+27, Pedestres
+28, Crianças atravessando
+29, Bicicletas atravessando
+30, Cuidado com gelo/neve
+31, Animais silvestres atravessando
+32, Fim de todas as limitações de velocidade e ultrapassagem
+33, Curva à direita para frente
+34, Curva à esquerda para frente
+35, Somente em frente
+36, Siga em frente ou à direita
+37, Siga em frente ou à esquerda
+38, Mantenha à direita
+39, Mantenha à esquerda
+40, Rotatória obrigatória
+41, Fim da proibição de ultrapassagem
+42, Fim da proibição de ultrapassagem para veículos acima de 3.5 toneladas
