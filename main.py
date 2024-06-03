@@ -23,7 +23,6 @@ sys.stdout.reconfigure(encoding='utf-8')
 
  #path = "C:/DEV/projetos/ProjetoIA/Dataset/brazilian-dataset/images" 
 path = "C:/DEV/projetos/ProjetoIA/datasets/Dataset.old" 
-#\[Pierre, Monhel Maudoony (2023), “Brazilian Vertical Traffic Signs and Lights Dataset”, Mendeley Data, V2, doi: 10.17632/jbpsr4fvg9.2\]
 
 
 labelFile = 'C:/DEV/projetos/ProjetoIA/labels/labels.csv' 

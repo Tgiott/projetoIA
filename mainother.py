@@ -11,11 +11,7 @@ from random import shuffle
 import subprocess
 
 # Ensure the ultralytics package is installed
-try:
-    from ultralytics import YOLO
-except ImportError:
-    subprocess.run(["pip", "install", "ultralytics"])
-    from ultralytics import YOLO
+from ultralytics import YOLO
 
 # Define paths
 input_path = 'C:/DEV/projetos/ProjetoIA/kaggle/input/road-sign-detection'
@@ -166,35 +162,6 @@ with open(os.path.join(output_path, 'data', 'sign_data.yaml'), 'w') as f:
     f.write('names: {}\n'.format(classes))
 
 # Define the training command
-epochs = 100
-command = [
-    "python",
-    "train.py",
-    "--img", "640",
-    "--batch", "16",
-    "--epochs", str(epochs),
-    "--data", "data/sign_data.yaml",
-    "--weights", "yolov5s.pt"
-]
 
-# Execute the training command
-subprocess.run(command, check=True)
 
-# Display the results
-exp_dir = os.path.join(output_path, 'runs', 'train')
-if os.path.exists(exp_dir):
-    exp = sorted(os.listdir(exp_dir))[-1]
-    exp_path = os.path.join(exp_dir, exp)
 
-    img_path = os.path.join(exp_path, 'val_batch0_pred.jpg')
-    if os.path.exists(img_path):
-        img = cv2.imread(img_path)
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        plt.figure(figsize=(15, 15))
-        plt.imshow(img_rgb)
-        plt.axis('off')
-        plt.show()
-    else:
-        print("Prediction image not found.")
-else:
-    print("No training results found.")

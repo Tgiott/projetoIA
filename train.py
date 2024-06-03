@@ -13,47 +13,16 @@ Models:     https://github.com/ultralytics/yolov5/tree/master/models
 Datasets:   https://github.com/ultralytics/yolov5/tree/master/data
 Tutorial:   https://docs.ultralytics.com/yolov5/tutorials/train_custom_data
 """
+import val as validate  # Assuming 'val' is a local module for validation
 
-import argparse
-import math
-import os
-import random
-import subprocess
-import sys
-import time
-from copy import deepcopy
-from datetime import datetime, timedelta
-from pathlib import Path
-
-try:
-    import comet_ml  # must be imported before torch (if installed)
-except ImportError:
-    comet_ml = None
-
-import numpy as np
-import torch
-import torch.distributed as dist
-import torch.nn as nn
-import yaml
-from torch.optim import lr_scheduler
-from tqdm import tqdm
-
-FILE = Path(__file__).resolve()
-ROOT = FILE.parents[0]  # YOLOv5 root directory
-if str(ROOT) not in sys.path:
-    sys.path.append(str(ROOT))  # add ROOT to PATH
-ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
-
-import val as validate  # for end-of-epoch mAP
-from models.experimental import attempt_load
-from models.yolo import Model
-from utils.autoanchor import check_anchors
-from utils.autobatch import check_train_batch_size
-from utils.callbacks import Callbacks
-from utils.dataloaders import create_dataloader
-from ultralytics.yolo.utils.downloads import download as attempt_download
-from utils.general import is_url
-from utils.general import (
+from ultralytics.yolo.models.common import attempt_load
+from ultralytics.yolo.models.yolo import Model
+from ultralytics.yolo.utils.autoanchor import check_anchors
+from ultralytics.yolo.utils.autobatch import check_train_batch_size
+from ultralytics.yolo.utils.callbacks import Callbacks
+from ultralytics.yolo.data.dataloaders import create_dataloader
+from ultralytics.yolo.utils.general import (
+    is_url,
     LOGGER,
     TQDM_BAR_FORMAT,
     check_amp,
@@ -79,12 +48,12 @@ from utils.general import (
     strip_optimizer,
     yaml_save,
 )
-from utils.loggers import LOGGERS, Loggers
-from utils.loggers.comet.comet_utils import check_comet_resume
-from utils.loss import ComputeLoss
-from utils.metrics import fitness
-from utils.plots import plot_evolve
-from utils.torch_utils import (
+from ultralytics.yolo.utils.loggers import LOGGERS, Loggers
+from ultralytics.yolo.utils.loggers.comet.comet_utils import check_comet_resume
+from ultralytics.yolo.utils.loss import ComputeLoss
+from ultralytics.yolo.utils.metrics import fitness
+from ultralytics.yolo.utils.plots import plot_evolve
+from ultralytics.yolo.utils.torch_utils import (
     EarlyStopping,
     ModelEMA,
     de_parallel,
@@ -94,6 +63,7 @@ from utils.torch_utils import (
     smart_resume,
     torch_distributed_zero_first,
 )
+from ultralytics.yolo.utils.downloads import attempt_download
 
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv("RANK", -1))
