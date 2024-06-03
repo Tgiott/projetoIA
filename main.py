@@ -1,158 +1,167 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.layers import Dropout, Flatten
-from tensorflow.keras.layers import  MaxPooling2D
-from tensorflow.keras.layers import Conv2D
-
-import cv2
-from sklearn.model_selection import train_test_split
-import pickle
 import os
-from pathlib import Path
 import pandas as pd
-import random
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-import sys
+import shutil
+import xml.etree.ElementTree as ET
+from collections import defaultdict
+from tqdm import tqdm
+import pybboxes as pbx
+import cv2
+import matplotlib.pyplot as plt
+from random import shuffle
+import subprocess
 
-sys.stdin.reconfigure(encoding='utf-8')
-sys.stdout.reconfigure(encoding='utf-8')
+# Ensure the ultralytics package is installed
+from ultralytics import YOLO
 
- #path = "C:/DEV/projetos/ProjetoIA/Dataset/brazilian-dataset/images" 
-path = "C:/DEV/projetos/ProjetoIA/datasets/Dataset.old" 
+# Define paths
+input_path = 'C:/DEV/projetos/ProjetoIA/kaggle/input/road-sign-detection'
+output_path = 'C:/DEV/projetos/ProjetoIA/kaggle/working/yolov5'
+annotations_path = os.path.join(input_path, 'annotations')
+
+# Ensure input path exists
+if not os.path.exists(input_path):
+    raise FileNotFoundError(f"The input path {input_path} does not exist.")
+
+annotations = os.listdir(annotations_path)
+if not annotations:
+    raise FileNotFoundError(f"No annotations found in {annotations_path}.")
+
+# Initialize lists for dataframe
+img_name_list = []
+width_list = []
+height_list = []
+label_list = []
+xmin_list = []
+ymin_list = []
+xmax_list = []
+ymax_list = []
+
+# Parse XML annotations
+for idx in tqdm(range(len(annotations))):
+    tree = ET.parse(os.path.join(annotations_path, annotations[idx]))
+    root = tree.getroot()
+
+    img_name = root.find('filename').text
+    size = root.find('size')
+    width = size.find('width').text
+    height = size.find('height').text
+
+    for group in root.findall('object'):
+        label = group.find('name').text
+        bbox = group.find('bndbox')
+        xmin = bbox.find('xmin').text
+        ymin = bbox.find('ymin').text
+        xmax = bbox.find('xmax').text
+        ymax = bbox.find('ymax').text
+        
+        img_name_list.append(img_name)
+        width_list.append(width)
+        height_list.append(height)
+        xmin_list.append(xmin)
+        ymin_list.append(ymin)
+        xmax_list.append(xmax)
+        ymax_list.append(ymax)
+        label_list.append(label)
+
+# Create dataframe
+labels_df = pd.DataFrame({
+    'img_name': img_name_list,
+    'width': width_list,
+    'height': height_list,
+    'xmin': xmin_list,
+    'ymin': ymin_list,
+    'xmax': xmax_list,
+    'ymax': ymax_list,
+    'label': label_list
+})
+
+# Map labels to classes
+classes = labels_df['label'].unique().tolist()
+labels_df['class'] = labels_df['label'].apply(lambda x: classes.index(x))
+
+# Initialize dictionary for YOLO format labels
+img_dict = defaultdict(list)
+
+# Convert bounding boxes to YOLO format
+for idx in tqdm(range(len(labels_df))):
+    sample_label_list = []
+    img_name = labels_df.loc[idx, 'img_name']
+    xmin = labels_df.loc[idx, 'xmin']
+    ymin = labels_df.loc[idx, 'ymin']
+    xmax = labels_df.loc[idx, 'xmax']
+    ymax = labels_df.loc[idx, 'ymax']
+    class_num = labels_df.loc[idx, 'class']
+    W, H = int(labels_df.loc[idx, 'width']), int(labels_df.loc[idx, 'height'])
+
+    voc_bbox = (int(xmin), int(ymin), int(xmax), int(ymax))
+    x_center, y_center, w, h = pbx.convert_bbox(voc_bbox, from_type="voc", to_type="yolo", image_size=(W, H))
+
+    sample_label_list.append(str(class_num))
+    sample_label_list.append(str(x_center))
+    sample_label_list.append(str(y_center))
+    sample_label_list.append(str(w))
+    sample_label_list.append(str(h))
+    line = ' '.join(sample_label_list)
+
+    img_dict[img_name].append(line)
+
+# Create labels directory
+labels_dir = os.path.join(output_path, 'data', 'labels')
+if os.path.exists(labels_dir):
+    shutil.rmtree(labels_dir)
+os.makedirs(labels_dir, exist_ok=True)
+
+# Generate .txt files for each image
+for img_name, lines in img_dict.items():
+    img_name = img_name.split('.')[0]
+    with open(os.path.join(labels_dir, f'{img_name}.txt'), 'w') as f:
+        for line in lines:
+            f.write(line + '\n')
+
+# Define directories for train and validation sets
+images_path = os.path.join(input_path, 'images')
+labels_path = labels_dir
+train_dir = os.path.join(output_path, 'data', 'train')
+val_dir = os.path.join(output_path, 'data', 'val')
+
+# Create train and validation directories
+for dir_path in [train_dir, val_dir]:
+    if os.path.exists(dir_path):
+        shutil.rmtree(dir_path)
+    os.makedirs(os.path.join(dir_path, 'images'), exist_ok=True)
+    os.makedirs(os.path.join(dir_path, 'labels'), exist_ok=True)
+
+# Split data into training and validation sets
+def split(files, ratio):
+    shuffle(files)
+    elements = len(files)
+    middle = int(elements * ratio)
+    return files[:middle], files[middle:]
+
+def copy_files(images_path, labels_path, destination_path, files):
+    for file_name in files:
+        base_name = file_name.split('.')[0]
+        shutil.copy(os.path.join(images_path, f'{base_name}.png'), os.path.join(destination_path, 'images'))
+        shutil.copy(os.path.join(labels_path, f'{base_name}.txt'), os.path.join(destination_path, 'labels'))
+
+# Perform the split and copy files
+train_ratio = 0.75
+files = os.listdir(images_path)
+train_files, val_files = split(files, train_ratio)
+
+copy_files(images_path, labels_path, train_dir, train_files)
+copy_files(images_path, labels_path, val_dir, val_files)
+
+assert len(os.listdir(os.path.join(train_dir, 'images'))) + len(os.listdir(os.path.join(val_dir, 'images'))) == len(os.listdir(images_path))
+
+# Create the YAML configuration file for YOLOv5
+with open(os.path.join(output_path, 'data', 'sign_data.yaml'), 'w') as f:
+    f.write('train: ../data/train/images\n')
+    f.write('val: ../data/val/images\n')
+    f.write('nc: {}\n'.format(len(classes)))
+    f.write('names: {}\n'.format(classes))
+
+# Define the training command
 
 
-labelFile = 'C:/DEV/projetos/ProjetoIA/labels/labels.csv' 
-batch_size_val=32 
-epochs_val=10
-imageDimesions = (32,32,3)
-testRatio = 0.2    
-validationRatio = 0.2 
-
-
-count = 0
-images = []
-classNo = []
-myList = os.listdir(path)
-print("Total Classes Detected:",len(myList))
-noOfClasses=len(myList)
-print("Importing Classes.....")
-for x in range (0,len(myList)):
-    myPicList = os.listdir(path+"/"+str(count))
-    for y in myPicList:
-        curImg = cv2.imread(path+"/"+str(count)+"/"+y)
-        images.append(curImg)
-        classNo.append(count)
-    print(count, end =" ")
-    count +=1
-print(" ")
-images = np.array(images)
-classNo = np.array(classNo)
- 
-X_train, X_test, y_train, y_test = train_test_split(images, classNo, test_size=testRatio)
-X_train, X_validation, y_train, y_validation = train_test_split(X_train, y_train, test_size=validationRatio)
-
-print("Data Shapes")
-print("Train",end = "");print(X_train.shape,y_train.shape)
-print("Validation",end = "");print(X_validation.shape,y_validation.shape)
-print("Test",end = "");print(X_test.shape,y_test.shape)
-
-
-data=pd.read_csv(labelFile)
-print("data shape ",data.shape,type(data))
- 
-num_of_samples = []
-cols = 5
-num_classes = noOfClasses
-
-def grayscale(img):
-    img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-    return img
-def equalize(img):
-    img =cv2.equalizeHist(img)
-    return img
-def preprocessing(img):
-    img = grayscale(img)     
-    img = equalize(img)      
-    img = img/255            
-    return img
- 
-X_train=np.array(list(map(preprocessing,X_train)))  
-X_validation=np.array(list(map(preprocessing,X_validation)))
-X_test=np.array(list(map(preprocessing,X_test)))
-
-
-X_train=X_train.reshape(X_train.shape[0],X_train.shape[1],X_train.shape[2],1)
-X_validation=X_validation.reshape(X_validation.shape[0],X_validation.shape[1],X_validation.shape[2],1)
-X_test=X_test.reshape(X_test.shape[0],X_test.shape[1],X_test.shape[2],1)
- 
- 
-dataGen= ImageDataGenerator(width_shift_range=0.1,   
-                            height_shift_range=0.1,
-                            zoom_range=0.2,  
-                            shear_range=0.1,  
-                            rotation_range=10)  
-dataGen.fit(X_train)
-batches= dataGen.flow(X_train,y_train,batch_size=20)
-X_batch,y_batch = next(batches)
- 
-
-y_train = to_categorical(y_train,noOfClasses)
-y_validation = to_categorical(y_validation,noOfClasses)
-y_test = to_categorical(y_test,noOfClasses)
-
-
-def myModel():
-    model= Sequential()
-    model.add((Conv2D(60,(5,5),input_shape=(imageDimesions[0],imageDimesions[1],1),activation='relu')))  # ADDING MORE CONVOLUTION LAYERS = LESS FEATURES BUT CAN CAUSE ACCURACY TO INCREASE
-    model.add((Conv2D(60, (5,5), activation='relu')))
-    model.add(MaxPooling2D(pool_size=(2,2)))
- 
-    model.add((Conv2D(30, (3,3),activation='relu')))
-    model.add((Conv2D(30, (3,3), activation='relu')))
-    model.add(MaxPooling2D(pool_size=(2,2)))
-    model.add(Dropout(0.5))
- 
-    model.add(Flatten())
-    model.add(Dense(500,activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(noOfClasses,activation='softmax')) 
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-    return model
- 
-model = myModel()
-print(model.summary())
-history=model.fit(dataGen.flow(X_train,y_train,batch_size=batch_size_val),steps_per_epoch=len(X_train)//32,epochs=epochs_val,validation_data=(X_validation,y_validation),shuffle=1)
-
-def save_model(path, model):
-    if not os.path.exists(path):
-        print('save directories...', flush=True)
-        os.makedirs(path)
-    model.save(path + '/model.h5')
-
-
-plt.figure(1)
-plt.plot(history.history['loss'])
-plt.plot(history.history['val_loss'])
-plt.legend(['training','validation'])
-plt.title('loss')
-plt.xlabel('epoch')
-plt.figure(2)
-plt.plot(history.history['accuracy'])
-plt.plot(history.history['val_accuracy'])
-plt.legend(['training','validation'])
-plt.title('Acurracy')
-plt.xlabel('epoch')
-plt.show()
-score =model.evaluate(X_test,y_test,verbose=0)
-print('Test Score:',score[0])
-print('Test Accuracy:',score[1])
- 
-
-
-
-model.save("model.h5")
 
