@@ -1,34 +1,36 @@
-import numpy as np 
-import pandas as pd 
 import os
-import numpy as np
 import pandas as pd
-import os
-import pybboxes as pbx
-from collections import defaultdict
-from tqdm import tqdm
 import shutil
 import xml.etree.ElementTree as ET
-import os
+from collections import defaultdict
 from tqdm import tqdm
-import pandas as pd
-import matplotlib.pyplot as plt
+import pybboxes as pbx
 import cv2
-from PIL import Image
+import matplotlib.pyplot as plt
+from random import shuffle
 import subprocess
 
+# Ensure the ultralytics package is installed
+try:
+    from ultralytics import YOLO
+except ImportError:
+    subprocess.run(["pip", "install", "ultralytics"])
+    from ultralytics import YOLO
 
-for dirname, _, filenames in os.walk('/kaggle/input'):
-    for filename in filenames:
-        print(os.path.join(dirname, filename))
-
-
+# Define paths
 input_path = 'C:/DEV/projetos/ProjetoIA/kaggle/input/road-sign-detection'
 output_path = 'C:/DEV/projetos/ProjetoIA/kaggle/working/yolov5'
-
 annotations_path = os.path.join(input_path, 'annotations')
-annotations = os.listdir(annotations_path)
 
+# Ensure input path exists
+if not os.path.exists(input_path):
+    raise FileNotFoundError(f"The input path {input_path} does not exist.")
+
+annotations = os.listdir(annotations_path)
+if not annotations:
+    raise FileNotFoundError(f"No annotations found in {annotations_path}.")
+
+# Initialize lists for dataframe
 img_name_list = []
 width_list = []
 height_list = []
@@ -38,14 +40,12 @@ ymin_list = []
 xmax_list = []
 ymax_list = []
 
+# Parse XML annotations
 for idx in tqdm(range(len(annotations))):
-
     tree = ET.parse(os.path.join(annotations_path, annotations[idx]))
     root = tree.getroot()
 
     img_name = root.find('filename').text
-    
-    
     size = root.find('size')
     width = size.find('width').text
     height = size.find('height').text
@@ -67,25 +67,26 @@ for idx in tqdm(range(len(annotations))):
         ymax_list.append(ymax)
         label_list.append(label)
 
+# Create dataframe
 labels_df = pd.DataFrame({
-                        'img_name': img_name_list, 
-                        'width': width_list,
-                        'height': height_list,
-                        'xmin': xmin_list,
-                        'ymin': ymin_list,
-                        'xmax': xmax_list,
-                        'ymax': ymax_list,
-                        'label': label_list})
-labels_df.head()
+    'img_name': img_name_list,
+    'width': width_list,
+    'height': height_list,
+    'xmin': xmin_list,
+    'ymin': ymin_list,
+    'xmax': xmax_list,
+    'ymax': ymax_list,
+    'label': label_list
+})
 
-
+# Map labels to classes
 classes = labels_df['label'].unique().tolist()
-classes
 labels_df['class'] = labels_df['label'].apply(lambda x: classes.index(x))
-labels_df.head()
 
+# Initialize dictionary for YOLO format labels
 img_dict = defaultdict(list)
 
+# Convert bounding boxes to YOLO format
 for idx in tqdm(range(len(labels_df))):
     sample_label_list = []
     img_name = labels_df.loc[idx, 'img_name']
@@ -96,9 +97,8 @@ for idx in tqdm(range(len(labels_df))):
     class_num = labels_df.loc[idx, 'class']
     W, H = int(labels_df.loc[idx, 'width']), int(labels_df.loc[idx, 'height'])
 
-    voc_bbox = (int(xmin), int(ymin) ,int(xmax), int(ymax))
-    
-    x_center, y_center, w, h = pbx.convert_bbox(voc_bbox, from_type="voc", to_type="yolo", image_size=(W,H))
+    voc_bbox = (int(xmin), int(ymin), int(xmax), int(ymax))
+    x_center, y_center, w, h = pbx.convert_bbox(voc_bbox, from_type="voc", to_type="yolo", image_size=(W, H))
 
     sample_label_list.append(str(class_num))
     sample_label_list.append(str(x_center))
@@ -108,122 +108,93 @@ for idx in tqdm(range(len(labels_df))):
     line = ' '.join(sample_label_list)
 
     img_dict[img_name].append(line)
-    
 
-# make labels dir in data folder of yolov5
-labels_dir = f'{output_path}/data/labels'
+# Create labels directory
+labels_dir = os.path.join(output_path, 'data', 'labels')
 if os.path.exists(labels_dir):
     shutil.rmtree(labels_dir)
-os.mkdir(labels_dir)
+os.makedirs(labels_dir, exist_ok=True)
 
-## Generate .txt file for each image
+# Generate .txt files for each image
 for img_name, lines in img_dict.items():
     img_name = img_name.split('.')[0]
-    with open(f'{labels_dir}/{img_name}.txt', 'w') as f:
+    with open(os.path.join(labels_dir, f'{img_name}.txt'), 'w') as f:
         for line in lines:
-            f.write(line)
-            f.write('\n')
+            f.write(line + '\n')
 
-import os
-import shutil
-from random import shuffle
+# Define directories for train and validation sets
+images_path = os.path.join(input_path, 'images')
+labels_path = labels_dir
+train_dir = os.path.join(output_path, 'data', 'train')
+val_dir = os.path.join(output_path, 'data', 'val')
 
-images_path = input_path + '/images'
-labels_path = labels_dir   ## directory having labels in .txt format
+# Create train and validation directories
+for dir_path in [train_dir, val_dir]:
+    if os.path.exists(dir_path):
+        shutil.rmtree(dir_path)
+    os.makedirs(os.path.join(dir_path, 'images'), exist_ok=True)
+    os.makedirs(os.path.join(dir_path, 'labels'), exist_ok=True)
 
-train_dir = output_path + '/data/train'
-val_dir = output_path + '/data/val'
-
-if os.path.exists(train_dir):
-    shutil.rmtree(train_dir)
-    
-if os.path.exists(val_dir):
-    shutil.rmtree(val_dir)
-    
-os.mkdir(train_dir)
-os.mkdir(val_dir)
-
-# train, val each containing images and labels folders
-os.mkdir(train_dir + '/images')
-os.mkdir(train_dir + '/labels')
-os.mkdir(val_dir + '/images')
-os.mkdir(val_dir + '/labels')
-
-# Shuffle image file names before splitting into train and val data
-files = os.listdir(images_path)
-shuffle(files)
-
-images_path, labels_path, train_dir
-
+# Split data into training and validation sets
 def split(files, ratio):
+    shuffle(files)
     elements = len(files)
     middle = int(elements * ratio)
-    return [files[:middle], files[middle:]]
+    return files[:middle], files[middle:]
 
 def copy_files(images_path, labels_path, destination_path, files):
-    
     for file_name in files:
-        file_name = file_name.split('.')[0]
+        base_name = file_name.split('.')[0]
+        shutil.copy(os.path.join(images_path, f'{base_name}.png'), os.path.join(destination_path, 'images'))
+        shutil.copy(os.path.join(labels_path, f'{base_name}.txt'), os.path.join(destination_path, 'labels'))
 
-        src = images_path + f'/{file_name}.png'
-        dst = destination_path + '/images'
-        shutil.copy(src, dst)
-
-        src = labels_path + f'/{file_name}.txt'
-        dst = destination_path + '/labels'
-        shutil.copy(src, dst)
-
-# Split and copy files in train and val folder
+# Perform the split and copy files
 train_ratio = 0.75
+files = os.listdir(images_path)
 train_files, val_files = split(files, train_ratio)
-
-root = 'data/traffic_sign_data'
 
 copy_files(images_path, labels_path, train_dir, train_files)
 copy_files(images_path, labels_path, val_dir, val_files)
 
-assert (len(os.listdir(train_dir + '/images')) + len(os.listdir(val_dir + '/images')) == len(os.listdir(images_path)))
+assert len(os.listdir(os.path.join(train_dir, 'images'))) + len(os.listdir(os.path.join(val_dir, 'images'))) == len(os.listdir(images_path))
 
-with open(f'{output_path}/data/sign_data.yaml', 'w') as f:
+# Create the YAML configuration file for YOLOv5
+with open(os.path.join(output_path, 'data', 'sign_data.yaml'), 'w') as f:
     f.write('train: ../data/train/images\n')
     f.write('val: ../data/val/images\n')
-    f.write('nc: 4\n')
-    f.write(f"names: {classes}")
+    f.write('nc: {}\n'.format(len(classes)))
+    f.write('names: {}\n'.format(classes))
 
-# Defina o valor de 'epochs' aqui
+# Define the training command
 epochs = 100
-
-# Comando a ser executado
-comando = [
+command = [
     "python",
     "train.py",
-    "--img",
-    "640",
-    "--batch",
-    "16",
-    "--epochs",
-    str(epochs),
-    "--data",
-    "sign_data.yaml",
-    "--weights",
-    "yolov5s.pt"
+    "--img", "640",
+    "--batch", "16",
+    "--epochs", str(epochs),
+    "--data", "data/sign_data.yaml",
+    "--weights", "yolov5s.pt"
 ]
 
-# Execute o comando
-subprocess.run(comando)
+# Execute the training command
+subprocess.run(command, check=True)
 
-# results stored in runs/train 
-# get the last stored result
-exp = sorted(os.listdir(output_path + '/runs/train'))[-1]
-exp_path = output_path + '/runs/train/' + exp
+# Display the results
+exp_dir = os.path.join(output_path, 'runs', 'train')
+if os.path.exists(exp_dir):
+    exp = sorted(os.listdir(exp_dir))[-1]
+    exp_path = os.path.join(exp_dir, exp)
 
-os.listdir(exp_path)
-
-
-#img_path = exp_path + '/val_batch0_pred.jpg'
-img = cv2.imread('/kaggle/working/yolov5/runs/train/exp/val_batch0_pred.jpg')
-imag = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-plt.figure(figsize=(15, 15))
-plt.imshow(imag)
-plt.axis('off')
-plt.show()
+    img_path = os.path.join(exp_path, 'val_batch0_pred.jpg')
+    if os.path.exists(img_path):
+        img = cv2.imread(img_path)
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        plt.figure(figsize=(15, 15))
+        plt.imshow(img_rgb)
+        plt.axis('off')
+        plt.show()
+    else:
+        print("Prediction image not found.")
+else:
+    print("No training results found.")
